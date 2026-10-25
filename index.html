@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kenya FAO Global Roadmap Policy Dashboard</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #0a0a0a;
+        }
+
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 5px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Load the dashboard data -->
+    <script src="dashboard_data.js"></script>
+
+    <!-- Main React App -->
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+
+        // Icon components
+        const Search = ({ size = 24, className = "", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+            </svg>
+        );
+
+        const Home = ({ size = 24, className = "", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+        );
+
+        const X = ({ size = 24, className = "", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        );
+
+        const ExternalLink = ({ size = 24, className = "", ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+        );
+
+        const EthiopiaDashboardV3 = () => {
+            const [selectedDomain, setSelectedDomain] = useState(null);
+            const [selectedAction, setSelectedAction] = useState(null);
+            const [hoveredSegment, setHoveredSegment] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [showResults, setShowResults] = useState(false);
+            const [activeTab, setActiveTab] = useState('targets');
+            const [searchType, setSearchType] = useState('actions');
+            const [searchView, setSearchView] = useState(null); // 'linkages' or 'targets' for showing all results
+
+            // Domain colors mapping
+            // Accent colors taken directly from the official FAO domain icons
+            const domainColorMap = {
+                'Data': '#74287C',
+                'Livestock': '#2F4997',
+                'Livestock.': '#2F4997',
+                'Crops': '#4CB1DC',
+                'Fisheries and Aquaculture': '#3A8FAE',
+                'Soil and Water': '#45875B',
+                'Forests and Wetlands': '#8CA94D',
+                'Clean Energy': '#F9BD24',
+                'Food Loss and Waste': '#EFA631',
+                'Enabling Healthy Diets for All': '#F58036',
+                'Inclusive Policies': '#C32429'
+            };
+
+            const getColorForDomain = (domainName) => {
+                return domainColorMap[domainName] || '#3B82F6';
+            };
+
+            // Domain icon mapping (official FAO Roadmap icons)
+            const domainIconMap = {
+                'Data': 'icons/01_data_transparent.png',
+                'Livestock': 'icons/02_livestock_transparent.png',
+                'Livestock.': 'icons/02_livestock_transparent.png',
+                'Crops': 'icons/03_crops_transparent.png',
+                'Fisheries and Aquaculture': 'icons/04_fisheries_transparent.png',
+                'Soil and Water': 'icons/05_soil_and_water_transparent.png',
+                'Forests and Wetlands': 'icons/06_forests_transparent.png',
+                'Clean Energy': 'icons/07_clean_energy_transparent.png',
+                'Food Loss and Waste': 'icons/08_food_loss_transparent.png',
+                'Enabling Healthy Diets for All': 'icons/09_healthy_diets_transparent.png',
+                'Inclusive Policies': 'icons/10_inclusive_policies_transparent.png'
+            };
+
+            const getIconForDomain = (domainName) => {
+                return domainIconMap[domainName] || '';
+            };
+
+            const dashboardData = window.dashboardData;
+
+            // Shorten unit names
+            const shortenUnit = (unit) => {
+                if (!unit) return '';
+
+                const unitMap = {
+                    'percent': '%',
+                    'percentage': '%',
+                    'hectare': 'ha',
+                    'hectares': 'ha',
+                    'kilometer': 'km',
+                    'kilometers': 'km',
+                    'kilogram': 'kg',
+                    'kilograms': 'kg',
+                    'meter': 'm',
+                    'meters': 'm',
+                    'tonne': 't',
+                    'tonnes': 't',
+                    'million': 'M',
+                    'billion': 'B',
+                    'thousand': 'K'
+                };
+
+                const unitLower = unit.toLowerCase().trim();
+                return unitMap[unitLower] || unit;
+            };
+
+            // Format numbers smartly
+            const formatNumber = (value, unit) => {
+                if (!value || value === 'N/A' || value === 'nan') return 'N/A';
+
+                // Try to parse as number
+                const num = parseFloat(value);
+                if (isNaN(num)) return value + (unit ? ` ${shortenUnit(unit)}` : '');
+
+                // Format large numbers
+                let formatted;
+                if (num >= 1000000000) {
+                    formatted = (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'B';
+                } else if (num >= 1000000) {
+                    formatted = (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+                } else if (num >= 1000) {
+                    formatted = (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+                } else if (num % 1 === 0) {
+                    formatted = num.toString();
+                } else {
+                    formatted = num.toFixed(2).replace(/\.?0+$/, '');
+                }
+
+                return formatted + (unit ? ` ${shortenUnit(unit)}` : '');
+            };
+
+            const allActions = useMemo(() => {
+                return dashboardData.domains.flatMap(domain =>
+                    domain.actions.map(action => ({
+                        ...action,
+                        domain: domain.name
+                    }))
+                );
+            }, []);
+
+            const allPolicyLinkages = useMemo(() => {
+                return dashboardData.domains.flatMap(domain =>
+                    domain.actions.flatMap(action =>
+                        action.policies.map(policy => ({
+                            ...policy,
+                            action: action.brief,
+                            actionNumber: action.number,
+                            domain: domain.name
+                        }))
+                    )
+                );
+            }, []);
+
+            const allTargets = useMemo(() => {
+                return dashboardData.domains.flatMap(domain =>
+                    domain.actions.flatMap(action =>
+                        action.metrics.map(metric => ({
+                            ...metric,
+                            action: action.brief,
+                            actionNumber: action.number,
+                            domain: domain.name
+                        }))
+                    )
+                );
+            }, []);
+
+            const handleSearch = (term) => {
+                setSearchTerm(term);
+                if (term.length < 2) {
+                    setSearchResults([]);
+                    setShowResults(false);
+                    return;
+                }
+
+                const termLower = term.toLowerCase();
+                let results = [];
+
+                if (searchType === 'actions') {
+                    results = allActions.filter(action =>
+                        action.brief.toLowerCase().includes(termLower) ||
+                        (action.long_description && action.long_description.toLowerCase().includes(termLower)) ||
+                        action.number.toLowerCase().includes(termLower)
+                    );
+                } else if (searchType === 'linkages') {
+                    results = allPolicyLinkages.filter(policy =>
+                        policy.description.toLowerCase().includes(termLower) ||
+                        (policy.long_description && policy.long_description.toLowerCase().includes(termLower)) ||
+                        (policy.policy_document && policy.policy_document.toLowerCase().includes(termLower))
+                    );
+                } else if (searchType === 'targets') {
+                    results = allTargets.filter(metric =>
+                        metric.description.toLowerCase().includes(termLower) ||
+                        (metric.long_description && metric.long_description.toLowerCase().includes(termLower)) ||
+                        (metric.policy_document && metric.policy_document.toLowerCase().includes(termLower))
+                    );
+                }
+
+                setSearchResults(results);
+                setShowResults(results.length > 0);
+            };
+
+            const selectSearchResult = (result) => {
+                if (searchType === 'actions') {
+                    // For actions, navigate to the specific action
+                    const domain = dashboardData.domains.find(d => d.name === result.domain);
+                    setSelectedDomain(domain);
+                    setSelectedAction(result);
+                    setSearchView(null);
+                } else {
+                    // For linkages and targets, show all results in a special view
+                    setSearchView(searchType);
+                    setSelectedDomain(null);
+                    setSelectedAction(null);
+                }
+                setSearchTerm('');
+                setShowResults(false);
+                setActiveTab(searchType === 'linkages' ? 'linkages' : 'targets');
+            };
+
+            const DonutChart = ({ data, onSliceClick }) => {
+                const width = 1300;
+                const height = 1300;
+                const ringRadius = 470;      // distance from center to each icon center
+                const iconSize = 200;        // icon diameter
+                const centerX = width / 2;
+                const centerY = height / 2;
+
+                // Evenly space the domains around the ring, starting at the top (12 o'clock)
+                const nodes = data.map((domain, index) => {
+                    const angle = -Math.PI / 2 + (index / data.length) * 2 * Math.PI;
+                    const cx = centerX + ringRadius * Math.cos(angle);
+                    const cy = centerY + ringRadius * Math.sin(angle);
+                    // Label sits radially outward from the icon
+                    const labelRadius = ringRadius + iconSize / 2 + 40;
+                    const labelX = centerX + labelRadius * Math.cos(angle);
+                    const labelY = centerY + labelRadius * Math.sin(angle);
+                    const textAnchor = labelX > centerX + 10 ? 'start' : labelX < centerX - 10 ? 'end' : 'middle';
+                    return {
+                        domain,
+                        index,
+                        cx,
+                        cy,
+                        labelX,
+                        labelY,
+                        textAnchor,
+                        color: getColorForDomain(domain.name),
+                        icon: getIconForDomain(domain.name)
+                    };
+                });
+
+                const hoveredDomain = hoveredSegment !== null ? nodes[hoveredSegment].domain : null;
+
+                return (
+                    <div className="relative w-full h-full flex items-center justify-center">
+                        <svg viewBox="-380 -20 2060 1360" preserveAspectRatio="xMidYMin meet" className="w-full h-auto md:h-full" style={{ maxHeight: '100%' }}>
+                            <defs>
+                                <filter id="icon-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                                    <feDropShadow dx="0" dy="6" stdDeviation="10" floodOpacity="0.45"/>
+                                </filter>
+                            </defs>
+
+                            {nodes.map((node, index) => {
+                                const isHovered = hoveredSegment === index;
+                                const dim = hoveredSegment !== null && !isHovered;
+                                const scale = isHovered ? 1.12 : 1;
+                                const size = iconSize * scale;
+                                return (
+                                    <g
+                                        key={index}
+                                        className="cursor-pointer"
+                                        style={{ transition: 'opacity 300ms', opacity: dim ? 0.4 : 1 }}
+                                        onClick={() => onSliceClick(node.domain)}
+                                        onMouseEnter={() => setHoveredSegment(index)}
+                                        onMouseLeave={() => setHoveredSegment(null)}
+                                    >
+                                        {/* Soft halo ring on hover */}
+                                        {isHovered && (
+                                            <circle cx={node.cx} cy={node.cy} r={iconSize / 2 + 14}
+                                                fill="none" stroke={node.color} strokeWidth="4" opacity="0.6" />
+                                        )}
+                                        <image
+                                            href={node.icon}
+                                            x={node.cx - size / 2}
+                                            y={node.cy - size / 2}
+                                            width={size}
+                                            height={size}
+                                            filter="url(#icon-shadow)"
+                                            style={{ transition: 'all 300ms' }}
+                                        />
+                                        <text x={node.labelX} y={node.labelY} textAnchor={node.textAnchor}
+                                            fontSize="30" fontWeight="700"
+                                            className="pointer-events-none fill-white">
+                                            {node.domain.name}
+                                        </text>
+                                        <text x={node.labelX} y={node.labelY + 36} textAnchor={node.textAnchor}
+                                            fontSize="24"
+                                            className="pointer-events-none fill-gray-400">
+                                            {node.domain.total_actions} actions · {node.domain.unique_policies} policies
+                                        </text>
+                                    </g>
+                                );
+                            })}
+
+                            {hoveredDomain ? (
+                                <g>
+                                    <text x={centerX} y={centerY - 60} textAnchor="middle" fontSize="40" fontWeight="700" className="fill-white">{hoveredDomain.name}</text>
+                                    <text x={centerX} y={centerY - 14} textAnchor="middle" fontSize="28" className="fill-gray-300">{hoveredDomain.total_actions} Actions</text>
+                                    <text x={centerX} y={centerY + 24} textAnchor="middle" fontSize="28" className="fill-gray-300">{hoveredDomain.total_policies} Policy Linkages</text>
+                                    <text x={centerX} y={centerY + 62} textAnchor="middle" fontSize="28" className="fill-gray-300">{hoveredDomain.total_metrics} Targets</text>
+                                    <text x={centerX} y={centerY + 104} textAnchor="middle" fontSize="26" fontWeight="600" className="fill-blue-400">Click to explore →</text>
+                                </g>
+                            ) : (
+                                <g>
+                                    <text x={centerX} y={centerY - 44} textAnchor="middle" fontSize="50" fontWeight="700" className="fill-white">Kenya</text>
+                                    <text x={centerX} y={centerY + 8} textAnchor="middle" fontSize="36" fontWeight="700" className="fill-gray-300">FAO Global Roadmap</text>
+                                    <text x={centerX} y={centerY + 48} textAnchor="middle" fontSize="26" className="fill-gray-400">Policy Mapping</text>
+                                </g>
+                            )}
+                        </svg>
+                    </div>
+                );
+            };
+
+            const DomainDetailView = () => {
+                const domainColor = getColorForDomain(selectedDomain.name);
+
+                return (
+                    <div className="flex flex-col md:grid md:grid-cols-12 gap-4 md:h-full">
+                        {/* Left Panel - Actions List */}
+                        <div className="md:col-span-4 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden flex flex-col max-h-[40vh] md:max-h-none">
+                            <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
+                                <h3 className="text-lg font-bold text-white mb-1">{selectedDomain.name}</h3>
+                                <p className="text-xs text-gray-400">{selectedDomain.total_actions} Roadmap Actions</p>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2">
+                                {selectedDomain.actions.map((action, index) => (
+                                    <div
+                                        key={index}
+                                        onClick={() => {
+                                            setSelectedAction(action);
+                                            setActiveTab('targets');
+                                        }}
+                                        className={`p-3 mb-2 rounded-lg cursor-pointer transition-all ${
+                                            selectedAction?.number === action.number
+                                                ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'
+                                                : 'bg-gray-800 hover:bg-gray-750 border border-gray-700'
+                                        }`}
+                                    >
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`text-sm font-medium leading-tight ${
+                                                selectedAction?.number === action.number ? 'text-white' : 'text-gray-200'
+                                            }`}>
+                                                {action.brief}
+                                            </p>
+                                            <div className="flex gap-3 mt-2 text-xs">
+                                                <span className={selectedAction?.number === action.number ? 'text-blue-100' : 'text-gray-500'}>
+                                                    {action.metric_count} Targets
+                                                </span>
+                                                <span className={selectedAction?.number === action.number ? 'text-blue-100' : 'text-gray-500'}>
+                                                    {action.policy_count} Linkages
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Right Panel - Action Details */}
+                        <div className="md:col-span-8 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden flex flex-col min-h-[50vh] md:min-h-0">
+                            {selectedAction ? (
+                                <>
+                                    {/* Action Header */}
+                                    <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-gray-800 to-gray-900">
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <div className="flex-1">
+                                                <h3 className="text-lg font-bold text-white">{selectedAction.brief}</h3>
+                                            </div>
+                                        </div>
+
+                                        {/* Tabs */}
+                                        <div className="flex gap-2 bg-gray-800 p-1 rounded-lg w-fit">
+                                            <button
+                                                onClick={() => setActiveTab('targets')}
+                                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                    activeTab === 'targets'
+                                                        ? 'bg-green-600 text-white shadow-lg'
+                                                        : 'text-gray-400 hover:text-white'
+                                                }`}
+                                            >
+                                                Targets ({selectedAction.metric_count})
+                                            </button>
+                                            <button
+                                                onClick={() => setActiveTab('linkages')}
+                                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                                    activeTab === 'linkages'
+                                                        ? 'bg-purple-600 text-white shadow-lg'
+                                                        : 'text-gray-400 hover:text-white'
+                                                }`}
+                                            >
+                                                Policy Linkages ({selectedAction.policy_count})
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Tab Content */}
+                                    <div className="flex-1 overflow-y-auto">
+                                        {activeTab === 'targets' ? (
+                                            <div className="p-4">
+                                                {selectedAction.metrics.length > 0 ? (
+                                                    <div className="space-y-3">
+                                                        {selectedAction.metrics.map((metric, index) => (
+                                                            <div key={index} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-green-500 transition-colors">
+                                                                <div className="flex items-start gap-2 mb-3">
+                                                                    <span className="text-green-400 font-bold text-sm flex-shrink-0">#{index + 1}</span>
+                                                                    <p className="text-white font-medium">{metric.description}</p>
+                                                                </div>
+                                                                <div className="grid grid-cols-3 gap-6 mb-3">
+                                                                    <div>
+                                                                        <span className="text-gray-500 text-xs block mb-1">Target</span>
+                                                                        <span className="text-blue-400 font-bold text-base">{formatNumber(metric.target, metric.units)}</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-gray-500 text-xs block mb-1">Baseline</span>
+                                                                        <span className="text-gray-300 font-semibold text-base">{formatNumber(metric.baseline, metric.units)}</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        <span className="text-gray-500 text-xs block mb-1">Target Year</span>
+                                                                        <span className="text-orange-400 font-bold text-base">{metric.target_year || 'N/A'}</span>
+                                                                    </div>
+                                                                </div>
+                                                                {metric.policy_document && (
+                                                                    <div className="border-t border-gray-700 pt-3">
+                                                                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                                            <span>Source:</span>
+                                                                            {metric.document_link ? (
+                                                                                <a
+                                                                                    href={metric.document_link}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+                                                                                >
+                                                                                    {metric.policy_document}
+                                                                                    <ExternalLink size={12} />
+                                                                                </a>
+                                                                            ) : (
+                                                                                <span className="text-gray-400">{metric.policy_document}</span>
+                                                                            )}
+                                                                            {metric.document_year && (
+                                                                                <span className="text-gray-500">({metric.document_year})</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center text-gray-500 py-8">
+                                                        No targets found for this roadmap action.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="p-4">
+                                                {selectedAction.policies.length > 0 ? (
+                                                    <div className="space-y-3">
+                                                        {selectedAction.policies.map((policy, index) => (
+                                                            <div key={index} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-purple-500 transition-colors">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-start gap-2 mb-2">
+                                                                            <span className="text-purple-400 font-bold text-sm flex-shrink-0">#{index + 1}</span>
+                                                                            <p className="text-white font-medium">{policy.description}</p>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                                                                            <span>Source:</span>
+                                                                            {policy.document_link ? (
+                                                                                <a
+                                                                                    href={policy.document_link}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+                                                                                >
+                                                                                    {policy.policy_document}
+                                                                                    <ExternalLink size={12} />
+                                                                                </a>
+                                                                            ) : (
+                                                                                <span className="text-gray-400">{policy.policy_document}</span>
+                                                                            )}
+                                                                            {policy.document_year && (
+                                                                                <span className="text-gray-500">({policy.document_year})</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex gap-2">
+                                                                            {policy.linkage_type && (
+                                                                                <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-1 rounded border border-purple-700">
+                                                                                    {policy.linkage_type}
+                                                                                </span>
+                                                                            )}
+                                                                            {policy.instrument_type && (
+                                                                                <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-1 rounded border border-blue-700">
+                                                                                    {policy.instrument_type}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center text-gray-500 py-8">
+                                                        No policy linkages found for this roadmap action.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-gray-500">
+                                    <div className="text-center">
+                                        <p className="text-lg mb-2">Select a roadmap action</p>
+                                        <p className="text-sm text-gray-600">Click on any action from the list to view details</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const SearchResultsView = () => {
+                const results = searchResults;
+                const isLinkages = searchView === 'linkages';
+
+                // Deduplicate results by description and group related actions
+                const uniqueResults = [];
+                const seen = new Map();
+
+                results.forEach(result => {
+                    const key = isLinkages
+                        ? `${result.description}|${result.policy_document}|${result.linkage_type}|${result.instrument_type}`
+                        : `${result.description}|${result.target}|${result.baseline}|${result.units}|${result.target_year}`;
+
+                    if (!seen.has(key)) {
+                        const newResult = { ...result, relatedActions: [{ domain: result.domain, action: result.action }] };
+                        seen.set(key, uniqueResults.length);
+                        uniqueResults.push(newResult);
+                    } else {
+                        const existingIndex = seen.get(key);
+                        const existing = uniqueResults[existingIndex];
+                        // Check if this domain-action combination is already added
+                        const actionKey = `${result.domain}|${result.action}`;
+                        const existingActionKey = existing.relatedActions.map(a => `${a.domain}|${a.action}`).join('||');
+                        if (!existingActionKey.includes(actionKey)) {
+                            existing.relatedActions.push({ domain: result.domain, action: result.action });
+                        }
+                    }
+                });
+
+                return (
+                    <div>
+                        <div className="mb-6">
+                            <h2 className="text-2xl font-bold text-white mb-2">
+                                Search Results: {uniqueResults.length} Unique {isLinkages ? 'Policy Linkage' : 'Target'}{uniqueResults.length !== 1 ? 's' : ''} Found
+                            </h2>
+                            <p className="text-gray-400">
+                                Showing unique {isLinkages ? 'policy linkages' : 'targets'} matching your search across all domains
+                                {uniqueResults.length !== results.length && ` (${results.length} total occurrences)`}
+                            </p>
+                        </div>
+
+                        <div className="space-y-3">
+                            {uniqueResults.map((result, index) => (
+                                isLinkages ? (
+                                    <div key={index} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-purple-500 transition-colors">
+                                        <div className="flex items-start gap-2 mb-2">
+                                            <span className="text-purple-400 font-bold text-sm flex-shrink-0">#{index + 1}</span>
+                                            <p className="text-white font-medium">{result.description}</p>
+                                        </div>
+                                        <div className="ml-7">
+                                            <div className="text-xs text-gray-500 mb-2">
+                                                <span className="font-semibold">Linked to {result.relatedActions.length} action{result.relatedActions.length !== 1 ? 's' : ''}:</span>
+                                                {result.relatedActions.map((ra, i) => (
+                                                    <div key={i} className="ml-2 mt-1">
+                                                        <span className="text-blue-400">{ra.domain}</span> → {ra.action}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+                                                <span>Source:</span>
+                                                {result.document_link ? (
+                                                    <a
+                                                        href={result.document_link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+                                                    >
+                                                        {result.policy_document}
+                                                        <ExternalLink size={12} />
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-gray-400">{result.policy_document}</span>
+                                                )}
+                                                {result.document_year && (
+                                                    <span className="text-gray-500">({result.document_year})</span>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {result.linkage_type && (
+                                                    <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-1 rounded border border-purple-700">
+                                                        {result.linkage_type}
+                                                    </span>
+                                                )}
+                                                {result.instrument_type && (
+                                                    <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-1 rounded border border-blue-700">
+                                                        {result.instrument_type}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div key={index} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-green-500 transition-colors">
+                                        <div className="flex items-start gap-2 mb-3">
+                                            <span className="text-green-400 font-bold text-sm flex-shrink-0">#{index + 1}</span>
+                                            <p className="text-white font-medium">{result.description}</p>
+                                        </div>
+                                        <div className="ml-7">
+                                            <div className="text-xs text-gray-500 mb-3">
+                                                <span className="font-semibold">Linked to {result.relatedActions.length} action{result.relatedActions.length !== 1 ? 's' : ''}:</span>
+                                                {result.relatedActions.map((ra, i) => (
+                                                    <div key={i} className="ml-2 mt-1">
+                                                        <span className="text-blue-400">{ra.domain}</span> → {ra.action}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-6 mb-3">
+                                                <div>
+                                                    <span className="text-gray-500 text-xs block mb-1">Target</span>
+                                                    <span className="text-blue-400 font-bold text-base">{formatNumber(result.target, result.units)}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-500 text-xs block mb-1">Baseline</span>
+                                                    <span className="text-gray-300 font-semibold text-base">{formatNumber(result.baseline, result.units)}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-gray-500 text-xs block mb-1">Target Year</span>
+                                                    <span className="text-orange-400 font-bold text-base">{result.target_year || 'N/A'}</span>
+                                                </div>
+                                            </div>
+                                            {result.policy_document && (
+                                                <div className="border-t border-gray-700 pt-3">
+                                                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                        <span>Source:</span>
+                                                        {result.document_link ? (
+                                                            <a
+                                                                href={result.document_link}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+                                                            >
+                                                                {result.policy_document}
+                                                                <ExternalLink size={12} />
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-gray-400">{result.policy_document}</span>
+                                                        )}
+                                                        {result.document_year && (
+                                                            <span className="text-gray-500">({result.document_year})</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            ))}
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen md:h-screen md:overflow-hidden bg-black p-2 md:p-4 flex flex-col">
+                    <div className="max-w-7xl mx-auto w-full flex flex-col flex-1 min-h-0">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-xl shadow-lg px-4 py-2 mb-2 border border-gray-700 flex-shrink-0">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <img src="icons/roadmap_logo.png" alt="FAO Global Roadmap" className="h-10 w-10 flex-shrink-0" />
+                                    <h1 className="text-base font-bold text-white leading-tight">Kenya FAO Global Roadmap Policy Mapping</h1>
+                                </div>
+                                {(selectedDomain || searchView) && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectedDomain(null);
+                                            setSelectedAction(null);
+                                            setSearchView(null);
+                                        }}
+                                        className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+                                    >
+                                        <Home size={20} />
+                                        Back to Domains
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Search Bar */}
+                            {!selectedDomain && !searchView && (
+                                <div className="mt-2 flex flex-col sm:flex-row gap-2 sm:items-center relative">
+                                    {/* Search Type Tabs */}
+                                    <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                                        <button
+                                            onClick={() => {
+                                                setSearchType('actions');
+                                                setSearchTerm('');
+                                                setShowResults(false);
+                                            }}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                                searchType === 'actions'
+                                                    ? 'bg-blue-600 text-white shadow-lg'
+                                                    : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                                            }`}
+                                        >
+                                            Search Actions
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setSearchType('linkages');
+                                                setSearchTerm('');
+                                                setShowResults(false);
+                                            }}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                                searchType === 'linkages'
+                                                    ? 'bg-purple-600 text-white shadow-lg'
+                                                    : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                                            }`}
+                                        >
+                                            Search Policy Linkages
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setSearchType('targets');
+                                                setSearchTerm('');
+                                                setShowResults(false);
+                                            }}
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                                searchType === 'targets'
+                                                    ? 'bg-green-600 text-white shadow-lg'
+                                                    : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                                            }`}
+                                        >
+                                            Search Targets
+                                        </button>
+                                    </div>
+                                    <div className="relative w-full sm:flex-1">
+                                        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" size={20} />
+                                        <input
+                                            type="text"
+                                            placeholder={
+                                                searchType === 'actions'
+                                                    ? "Search actions by keyword (e.g., 'livestock', 'genetics', 'breeding')..."
+                                                    : searchType === 'linkages'
+                                                    ? "Search policy linkages by keyword (e.g., 'financing', 'institutional', 'regulatory')..."
+                                                    : "Search targets by keyword (e.g., 'hectares', 'production', 'emissions')..."
+                                            }
+                                            value={searchTerm}
+                                            onChange={(e) => handleSearch(e.target.value)}
+                                            className="w-full pl-12 pr-10 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg focus:border-blue-500 focus:outline-none text-white placeholder-gray-500 text-sm"
+                                        />
+                                        {searchTerm && (
+                                            <button
+                                                onClick={() => {
+                                                    setSearchTerm('');
+                                                    setShowResults(false);
+                                                }}
+                                                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                                            >
+                                                <X size={18} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {showResults && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border-2 border-blue-500 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto">
+                                            <div className="p-2">
+                                                <div className="text-sm text-gray-400 px-3 py-2 font-medium">
+                                                    Found {searchResults.length} {
+                                                        searchType === 'actions' ? 'action' :
+                                                        searchType === 'linkages' ? 'policy linkage' : 'target'
+                                                    }{searchResults.length !== 1 ? 's' : ''}
+                                                </div>
+                                                {searchResults.map((result, index) => (
+                                                    <div
+                                                        key={index}
+                                                        onClick={() => selectSearchResult(result)}
+                                                        className="p-3 hover:bg-gray-800 rounded-lg cursor-pointer transition-colors"
+                                                    >
+                                                        {searchType === 'actions' ? (
+                                                            <div className="flex items-start gap-3">
+                                                                <span className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-bold flex-shrink-0">
+                                                                    {result.number}
+                                                                </span>
+                                                                <div className="flex-1">
+                                                                    <div className="font-semibold text-white">{result.brief}</div>
+                                                                    <div className="text-xs text-gray-400 mt-1">
+                                                                        {result.domain} • {result.policy_count} linkages • {result.metric_count} targets
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : searchType === 'linkages' ? (
+                                                            <div className="flex items-start gap-3">
+                                                                <span className="px-2 py-1 bg-purple-600 text-white rounded text-xs font-bold flex-shrink-0">
+                                                                    Policy
+                                                                </span>
+                                                                <div className="flex-1">
+                                                                    <div className="font-semibold text-white">{result.description}</div>
+                                                                    <div className="text-xs text-gray-400 mt-1">
+                                                                        {result.domain} • {result.action}
+                                                                    </div>
+                                                                    {result.policy_document && (
+                                                                        <div className="text-xs text-blue-400 mt-1">
+                                                                            Source: {result.policy_document}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-start gap-3">
+                                                                <span className="px-2 py-1 bg-green-600 text-white rounded text-xs font-bold flex-shrink-0">
+                                                                    Target
+                                                                </span>
+                                                                <div className="flex-1">
+                                                                    <div className="font-semibold text-white">{result.description}</div>
+                                                                    <div className="text-xs text-gray-400 mt-1">
+                                                                        {result.domain} • {result.action}
+                                                                    </div>
+                                                                    {result.target_year && (
+                                                                        <div className="text-xs text-orange-400 mt-1">
+                                                                            Target Year: {result.target_year}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Main Content Area */}
+                        <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl shadow-2xl p-4 border border-gray-700 overflow-y-auto md:flex-1 md:min-h-0">
+                            {searchView ? (
+                                <SearchResultsView />
+                            ) : !selectedDomain ? (
+                                <div className="flex flex-col md:h-full">
+                                    <div className="w-full md:flex-1 md:min-h-0">
+                                        <DonutChart
+                                            data={dashboardData.domains}
+                                            onSliceClick={(domain) => {
+                                                setSelectedDomain(domain);
+                                                setSelectedAction(null);
+                                                setSearchView(null);
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <DomainDetailView />
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="mt-2 text-center flex-shrink-0">
+                            <p className="text-xs text-gray-500">
+                                <strong className="text-gray-400">Data Source:</strong> FAO Kenya Policy Document Analysis • <strong className="text-gray-400">Last updated:</strong> October 2026
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the app
+        ReactDOM.render(<EthiopiaDashboardV3 />, document.getElementById('root'));
+    </script>
+</body>
+</html>
